@@ -2,16 +2,16 @@ import streamlit as st
 from sympy import symbols, Eq, solve
 import math
 
-st.title("フィレット距離計算ツール（条件分岐対応）")
+st.title("フィレット距離計算ツール（条件分岐＆空欄対応）")
 
-# 入力欄
+# 入力欄（Rとrは空欄がデフォルト）
 a = st.number_input("短側カット寸法の半分（a）", value=50.0)
 b = st.number_input("長側カット寸法の半分（b）", value=100.0)
-R_input = st.text_input("長側半径（R）", value="1000")
-r_input = st.text_input("短側半径（r）", value="1000")
+R_input = st.text_input("長側半径（R）", value="")  # 空欄デフォルト
+r_input = st.text_input("短側半径（r）", value="")  # 空欄デフォルト
 c = st.number_input("コーナー半径（c）", value=10.0)
 
-# 入力処理（空欄対応）
+# 空欄判定（R, r）
 use_circle1 = R_input.strip() != ""
 use_circle2 = r_input.strip() != ""
 
@@ -21,12 +21,13 @@ if st.button("計算する"):
         R = float(R_input) if use_circle1 else None
         r = float(r_input) if use_circle2 else None
 
-        # 式定義
+        # 式①（Rあり or y = a）
         if use_circle1:
             eq1 = Eq(x**2 + (y + R - a)**2, R**2)
         else:
             eq1 = Eq(y, a)
 
+        # 式②（rあり or x = b）
         if use_circle2:
             eq2 = Eq((x + r - b)**2 + y**2, r**2)
         else:
@@ -34,8 +35,7 @@ if st.button("計算する"):
 
         # 交点計算
         if not use_circle1 or not use_circle2:
-            # どちらかが直線になっている場合は交点を (b, a) に固定
-            x0, y0 = b, a
+            x0, y0 = b, a  # どちらかが直線なら交点は (b, a)
         else:
             solutions = solve((eq1, eq2), (x, y), dict=True)
             x0, y0 = None, None
@@ -53,12 +53,12 @@ if st.button("計算する"):
         if use_circle1:
             x1, y1 = 0, -R + a
         else:
-            x1, y1 = x0, y0 - 1  # 仮の方向ベクトル用（真下）
+            x1, y1 = x0, y0 - 1  # 仮の方向：真下
 
         if use_circle2:
             x2, y2 = -r + b, 0
         else:
-            x2, y2 = x0 - 1, y0  # 仮の方向ベクトル用（左）
+            x2, y2 = x0 - 1, y0  # 仮の方向：左
 
         dx1, dy1 = float(x0 - x1), float(y0 - y1)
         dx2, dy2 = float(x0 - x2), float(y0 - y2)
@@ -69,11 +69,11 @@ if st.button("計算する"):
         uy = dy1 / mag1 + dy2 / mag2
         magU = math.hypot(ux, uy)
 
-        # フィレット中心（交点から内向き）
+        # フィレット中心（内向き方向へcオフセット）
         mx = float(x0) - c * (ux / magU)
         my = float(y0) - c * (uy / magU)
 
-        # 距離 L（中心 → (b, a)）
+        # 距離 L = フィレット中心 → (b, a)
         L = math.sqrt((mx - b)**2 + (my - a)**2)
 
         # 出力
