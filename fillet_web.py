@@ -2,7 +2,7 @@ import streamlit as st
 from sympy import symbols, Eq, solve
 import math
 
-st.title("フィレット距離計算ツール（正確なフィレット位置）")
+st.title("フィレット距離計算ツール（完全版）")
 
 # 入力欄（Rとrは空欄がデフォルト）
 a = st.number_input("短側カット寸法の半分（a）", value=50.0)
@@ -33,10 +33,12 @@ if st.button("計算する"):
         else:
             eq2 = Eq(x, b)
 
-        # 交点
-        if not use_circle1 or not use_circle2:
+        # 交点の決定
+        if not use_circle1 and not use_circle2:
+            # 両方空欄 → 交点は固定
             x0, y0 = b, a
         else:
+            # 連立方程式で解く（片方だけ空欄でもOK）
             solutions = solve((eq1, eq2), (x, y), dict=True)
             x0, y0 = None, None
             for sol in solutions:
@@ -51,11 +53,11 @@ if st.button("計算する"):
 
         # フィレット中心の計算
         if not use_circle1 and not use_circle2:
-            # 両方空欄：長方形の角 → 正確な中心位置
+            # 両方空欄 → 長方形角フィレット（2辺に接する）
             mx = b - c
             my = a - c
         else:
-            # 通常のベクトル合成
+            # 通常：法線ベクトルで内向き方向に配置
             if use_circle1:
                 x1, y1 = 0, -R + a
             else:
@@ -78,7 +80,7 @@ if st.button("計算する"):
             mx = x0 - c * (ux / magU)
             my = y0 - c * (uy / magU)
 
-        # 距離 L（中心 → (b, a)）
+        # 距離 L = フィレット中心 → (b, a)
         L = math.sqrt((mx - b)**2 + (my - a)**2)
 
         # 出力
