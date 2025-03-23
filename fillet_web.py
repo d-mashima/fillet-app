@@ -2,7 +2,7 @@ import streamlit as st
 from sympy import symbols, Eq, solve
 import math
 
-st.title("フィレット距離計算ツール（条件分岐＆空欄対応）")
+st.title("フィレット距離計算ツール（正確なフィレット位置）")
 
 # 入力欄（Rとrは空欄がデフォルト）
 a = st.number_input("短側カット寸法の半分（a）", value=50.0)
@@ -11,7 +11,7 @@ R_input = st.text_input("長側半径（R）", value="")  # 空欄デフォル�
 r_input = st.text_input("短側半径（r）", value="")  # 空欄デフォルト
 c = st.number_input("コーナー半径（c）", value=10.0)
 
-# 空欄判定（R, r）
+# 空欄判定
 use_circle1 = R_input.strip() != ""
 use_circle2 = r_input.strip() != ""
 
@@ -33,9 +33,9 @@ if st.button("計算する"):
         else:
             eq2 = Eq(x, b)
 
-        # 交点計算
+        # 交点
         if not use_circle1 or not use_circle2:
-            x0, y0 = b, a  # どちらかが直線なら交点は (b, a)
+            x0, y0 = b, a
         else:
             solutions = solve((eq1, eq2), (x, y), dict=True)
             x0, y0 = None, None
@@ -49,31 +49,36 @@ if st.button("計算する"):
                 st.error("第1象限に交点が見つかりませんでした。")
                 st.stop()
 
-        # フィレット中心計算（内向き）
-        if use_circle1:
-            x1, y1 = 0, -R + a
+        # フィレット中心の計算
+        if not use_circle1 and not use_circle2:
+            # 両方空欄：長方形の角 → 正確な中心位置
+            mx = b - c
+            my = a - c
         else:
-            x1, y1 = x0, y0 - 1  # 仮の方向：真下
+            # 通常のベクトル合成
+            if use_circle1:
+                x1, y1 = 0, -R + a
+            else:
+                x1, y1 = x0, y0 - 1  # 仮方向：下
 
-        if use_circle2:
-            x2, y2 = -r + b, 0
-        else:
-            x2, y2 = x0 - 1, y0  # 仮の方向：左
+            if use_circle2:
+                x2, y2 = -r + b, 0
+            else:
+                x2, y2 = x0 - 1, y0  # 仮方向：左
 
-        dx1, dy1 = float(x0 - x1), float(y0 - y1)
-        dx2, dy2 = float(x0 - x2), float(y0 - y2)
-        mag1 = math.hypot(dx1, dy1)
-        mag2 = math.hypot(dx2, dy2)
+            dx1, dy1 = x0 - x1, y0 - y1
+            dx2, dy2 = x0 - x2, y0 - y2
+            mag1 = math.hypot(dx1, dy1)
+            mag2 = math.hypot(dx2, dy2)
 
-        ux = dx1 / mag1 + dx2 / mag2
-        uy = dy1 / mag1 + dy2 / mag2
-        magU = math.hypot(ux, uy)
+            ux = dx1 / mag1 + dx2 / mag2
+            uy = dy1 / mag1 + dy2 / mag2
+            magU = math.hypot(ux, uy)
 
-        # フィレット中心（内向き方向へcオフセット）
-        mx = float(x0) - c * (ux / magU)
-        my = float(y0) - c * (uy / magU)
+            mx = x0 - c * (ux / magU)
+            my = y0 - c * (uy / magU)
 
-        # 距離 L = フィレット中心 → (b, a)
+        # 距離 L（中心 → (b, a)）
         L = math.sqrt((mx - b)**2 + (my - a)**2)
 
         # 出力
