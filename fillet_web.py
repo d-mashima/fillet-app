@@ -2,7 +2,7 @@ import streamlit as st
 from sympy import symbols, Eq, solve
 import math
 
-st.title("フィレット距離計算ツール（完全版）")
+st.title("フィレット距離計算ツール（法線ベクトル完全対応）")
 
 # 入力欄（Rとrは空欄がデフォルト）
 a = st.number_input("短側カット寸法の半分（a）", value=50.0)
@@ -35,10 +35,8 @@ if st.button("計算する"):
 
         # 交点の決定
         if not use_circle1 and not use_circle2:
-            # 両方空欄 → 交点は固定
             x0, y0 = b, a
         else:
-            # 連立方程式で解く（片方だけ空欄でもOK）
             solutions = solve((eq1, eq2), (x, y), dict=True)
             x0, y0 = None, None
             for sol in solutions:
@@ -53,26 +51,26 @@ if st.button("計算する"):
 
         # フィレット中心の計算
         if not use_circle1 and not use_circle2:
-            # 両方空欄 → 長方形角フィレット（2辺に接する）
             mx = b - c
             my = a - c
         else:
-            # 通常：法線ベクトルで内向き方向に配置
+            # 法線ベクトル①（円または y = a）
             if use_circle1:
                 x1, y1 = 0, -R + a
+                dx1, dy1 = x0 - x1, y0 - y1
             else:
-                x1, y1 = x0, y0 - 1  # 仮方向：下
+                dx1, dy1 = 0, -1  # 真下方向
 
+            # 法線ベクトル②（円または x = b）
             if use_circle2:
                 x2, y2 = -r + b, 0
+                dx2, dy2 = x0 - x2, y0 - y2
             else:
-                x2, y2 = x0 - 1, y0  # 仮方向：左
+                dx2, dy2 = -1, 0  # 真左方向
 
-            dx1, dy1 = x0 - x1, y0 - y1
-            dx2, dy2 = x0 - x2, y0 - y2
+            # 合成ベクトル（正規化）
             mag1 = math.hypot(dx1, dy1)
             mag2 = math.hypot(dx2, dy2)
-
             ux = dx1 / mag1 + dx2 / mag2
             uy = dy1 / mag1 + dy2 / mag2
             magU = math.hypot(ux, uy)
@@ -91,3 +89,8 @@ if st.button("計算する"):
 
     except Exception as e:
         st.error(f"エラーが発生しました: {str(e)}")
+3月24日 7:52
+
+
+
+Enterで送信
