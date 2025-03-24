@@ -79,4 +79,3 @@ if st.button("計算する"):
 
     except Exception as e:
         st.error(f"エラーが発生しました: {str(e)}")
-3月24日 12:56
