@@ -56,13 +56,11 @@ with st.container():
     try:
         R = float(R_input) if use_circle1 else None
         r = float(r_input) if use_circle2 else None
-
         mt = 13 if z < 50 else 20
 
-        # ===== フィレット中心計算 =====
+        # ===== フィレット中心座標 =====
         x, y = symbols('x y', real=True)
         mx, my = None, None
-
         if use_circle1 and use_circle2:
             x1, y1 = 0.0, -R + w / 2
             x2, y2 = -r + d / 2, 0.0
@@ -104,27 +102,27 @@ with st.container():
             st.error("第1象限に有効なフィレット中心が見つかりませんでした。")
             st.stop()
 
-        # ===== 最初の割付数 =====
-        wpz_base = (20 + (convex - 20) / 2) * 0.9
-        wpz = max(math.floor(wpz_base), 12)
+        # 初期割り付け数
+        wpz = max(math.floor((20 + (convex - 20) / 2) * 0.9), 12)
         if z >= 50:
             wpz = 20
-        dp_init = wpz
         wp_init = wpz
+        dp_init = wpz
+        a0 = math.floor(960 / (w + wpz))
+        b0 = math.floor((1100 - mt * 2) / (d + wpz))
 
-        a0 = math.floor(960 / (wp_init + w))
-        b0 = math.floor((1100 - mt * 2) / (d + dp_init))
-
-        # ===== 最適化関数 =====
-        def optimize(a_ref, b_ref):
+        # ===== 最適化関数（一般化） =====
+        def optimize(a_ref, b_ref, unrestricted=False):
             best = None
-            for dwp in range(-3, 4):
-                for ddp in range(-3, 4):
-                    wp = wp_init + dwp
-                    dp = dp_init + ddp
+            wp_range = range(1, int(960 / a_ref - w) + 1) if unrestricted else range(wp_init - 3, wp_init + 4)
+            dp_limit = int((1100 - mt * 2) / b_ref - d)
+            dp_range = range(1, dp_limit + 1) if unrestricted else range(dp_init - 3, dp_init + 4)
+
+            for wp in wp_range:
+                for dp in dp_range:
                     if wp < 1 or dp < 1:
                         continue
-                    a = min(a_ref, math.floor(960 / (wp + w)))
+                    a = min(a_ref, math.floor(960 / (w + wp)))
                     b = min(b_ref, math.floor((1100 - mt * 2) / (d + dp)))
                     if a == 0 or b == 0:
                         continue
@@ -144,11 +142,11 @@ with st.container():
                             }
             return best
 
-        # ===== 最適化試行 =====
-        result = optimize(a0, b0)
+        # ===== 最適化手順 =====
+        result = optimize(a0, b0, unrestricted=False)
         if not result:
-            result1 = optimize(a0 - 1, b0)
-            result2 = optimize(a0, b0 - 1)
+            result1 = optimize(a0 - 1, b0, unrestricted=True)
+            result2 = optimize(a0, b0 - 1, unrestricted=True)
             candidates = [r for r in [result1, result2] if r]
             if candidates:
                 result = max(candidates, key=lambda x: (x['score'], -x['ds']))
