@@ -2,8 +2,55 @@ import streamlit as st
 from sympy import symbols, Eq, solve
 import math
 
+# ページ設定
 st.set_page_config(page_title="フィレット距離計算ツール", layout="centered")
-st.title("割り付け＋フィレット距離計算ツール")
+
+# HTML風スタイル追加
+st.markdown("""
+<style>
+    html, body {
+        font-family: "メイリオ", "MS Pゴシック", sans-serif;
+    }
+    .block-container {
+        max-width: 400px;
+        padding-top: 1rem;
+        margin: auto;
+    }
+    label {
+        font-weight: bold;
+        font-size: 12px !important;
+    }
+    input[type="number"] {
+        text-align: center;
+    }
+    .stNumberInput > div > input {
+        font-size: 12px !important;
+        text-align: center !important;
+    }
+    .stTextInput > div > input {
+        font-size: 12px !important;
+        text-align: center !important;
+    }
+    .result-box {
+        background-color: #dff0d8;
+        border: 1px solid #c3e6cb;
+        padding: 10px;
+        border-radius: 6px;
+        font-size: 12px;
+    }
+    .section-title {
+        background-color: #005bac;
+        color: white;
+        padding: 6px;
+        font-size: 14px;
+        text-align: center;
+        border-radius: 4px;
+        margin-top: 20px;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown('<div class="section-title">割り付け＋フィレット距離計算ツール</div>', unsafe_allow_html=True)
 
 # ===== 入力 =====
 w = st.number_input("短側寸法 w（製品巾）", value=100.0)
@@ -36,11 +83,14 @@ try:
     wc = w + wp
     dc = d + dp
 
-    st.subheader("【割り付け計算結果】")
-    st.write(f"幅採り数 a = {a}")
-    st.write(f"送り採り数 b = {b}")
-    st.write(f"キャビピッチ wc = {wc}")
-    st.write(f"キャビピッチ dc = {dc}")
+    st.markdown('<div class="section-title">計算結果</div>', unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="result-box">
+        幅採り数 a = {a}<br>
+        送り採り数 b = {b}<br>
+        キャビピッチ wc = {wc}<br>
+        キャビピッチ dc = {dc}<br>
+    """, unsafe_allow_html=True)
 
     # ===== フィレット中心計算 =====
     x, y = symbols('x y', real=True)
@@ -87,12 +137,14 @@ try:
         st.error("第1象限に有効なフィレット中心が見つかりませんでした。")
         st.stop()
 
-    # ===== 新しい定義の L =====
+    # ===== 新定義の L =====
     L = math.sqrt((mx - dc / 2) ** 2 + (my - wc / 2) ** 2) - c
 
-    st.subheader("【フィレット距離計算結果】")
-    st.write(f"フィレット中心 (mx, my) = ({mx:.3f}, {my:.3f})")
-    st.write(f"L = √((mx - dc/2)² + (my - wc/2)²) - c = {L:.3f}")
+    st.markdown(f"""
+        フィレット中心 (mx, my) = ({mx:.3f}, {my:.3f})<br>
+        距離 L = √((mx - dc/2)² + (my - wc/2)²) - c = {L:.3f}
+    </div>
+    """, unsafe_allow_html=True)
 
 except Exception as e:
     st.error(f"エラーが発生しました: {str(e)}")
