@@ -59,7 +59,7 @@ with st.container():
 
         mt = 13 if z < 50 else 20
 
-        # ===== フィレット中心計算（変わらない） =====
+        # ===== フィレット中心計算 =====
         x, y = symbols('x y', real=True)
         mx, my = None, None
 
@@ -104,52 +104,65 @@ with st.container():
             st.error("第1象限に有効なフィレット中心が見つかりませんでした。")
             st.stop()
 
-        # ===== 最適化探索範囲 =====
+        # ===== 最初の割付数 =====
         wpz_base = (20 + (convex - 20) / 2) * 0.9
-        wpz_default = max(math.floor(wpz_base), 12)
+        wpz = max(math.floor(wpz_base), 12)
         if z >= 50:
-            wpz_default = 20
+            wpz = 20
+        dp_init = wpz
+        wp_init = wpz
 
-        best = None
+        a0 = math.floor(960 / (wp_init + w))
+        b0 = math.floor((1100 - mt * 2) / (d + dp_init))
 
-        for delta_wp in range(-3, 4):  # ±3mm
-            for delta_dp in range(-3, 4):
-                wp = wpz_default + delta_wp
-                dp = wpz_default + delta_dp
-                if wp < 1 or dp < 1:
-                    continue
+        # ===== 最適化関数 =====
+        def optimize(a_ref, b_ref):
+            best = None
+            for dwp in range(-3, 4):
+                for ddp in range(-3, 4):
+                    wp = wp_init + dwp
+                    dp = dp_init + ddp
+                    if wp < 1 or dp < 1:
+                        continue
+                    a = min(a_ref, math.floor(960 / (wp + w)))
+                    b = min(b_ref, math.floor((1100 - mt * 2) / (d + dp)))
+                    if a == 0 or b == 0:
+                        continue
+                    wc = w + wp
+                    dc = d + dp
+                    ds = mt * 2 + (d + dp) * b
+                    L = math.sqrt((mx - dc / 2) ** 2 + (my - wc / 2) ** 2) - c - 7
+                    if L > 8:
+                        score = a * b
+                        if (best is None or
+                            score > best['score'] or
+                            (score == best['score'] and ds < best['ds'])):
+                            best = {
+                                'a': a, 'b': b, 'wp': wp, 'dp': dp,
+                                'wc': wc, 'dc': dc, 'ds': ds, 'L': L,
+                                'score': score
+                            }
+            return best
 
-                a = math.floor(960 / (wp + w))
-                b = math.floor((1100 - mt * 2) / (d + dp))
-                if a == 0 or b == 0:
-                    continue
-
-                wc = w + wp
-                dc = d + dp
-                ds = mt * 2 + (d + dp) * b
-                L = math.sqrt((mx - dc / 2)**2 + (my - wc / 2)**2) - c - 7
-
-                if L > 8:
-                    score = a * b
-                    if (best is None or
-                        score > best['score'] or
-                        (score == best['score'] and ds < best['ds'])):
-                        best = {
-                            'a': a, 'b': b, 'wp': wp, 'dp': dp,
-                            'wc': wc, 'dc': dc, 'ds': ds, 'L': L,
-                            'score': score
-                        }
+        # ===== 最適化試行 =====
+        result = optimize(a0, b0)
+        if not result:
+            result1 = optimize(a0 - 1, b0)
+            result2 = optimize(a0, b0 - 1)
+            candidates = [r for r in [result1, result2] if r]
+            if candidates:
+                result = max(candidates, key=lambda x: (x['score'], -x['ds']))
 
         # ===== 出力 =====
-        if best:
+        if result:
             st.markdown('<div class="section">', unsafe_allow_html=True)
             st.markdown("【最適化結果（L > 8 を満たす最大 a×b 構成）】")
-            st.write(f"幅採り数 a = {best['a']}")
-            st.write(f"送り採り数 b = {best['b']}")
-            st.write(f"キャビピッチ wc = {best['wc']}")
-            st.write(f"キャビピッチ dc = {best['dc']}")
-            st.write(f"型寸送り ds = {best['ds']}")
-            st.write(f"L = {best['L']:.3f}")
+            st.write(f"幅採り数 a = {result['a']}")
+            st.write(f"送り採り数 b = {result['b']}")
+            st.write(f"キャビピッチ wc = {result['wc']}")
+            st.write(f"キャビピッチ dc = {result['dc']}")
+            st.write(f"型寸送り ds = {result['ds']}")
+            st.write(f"L = {result['L']:.3f}")
             st.markdown('<span style="color: green;">※Lが8以下のため、自動最適化されました。</span>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
         else:
