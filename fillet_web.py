@@ -2,9 +2,10 @@ import streamlit as st
 from sympy import symbols, Eq, solve
 import math
 
+st.set_page_config(page_title="フィレット距離計算ツール", layout="centered")
 st.title("割り付け＋フィレット距離計算ツール")
 
-# 入力
+# ===== 入力 =====
 w = st.number_input("短側寸法 w（製品巾）", value=100.0)
 d = st.number_input("長側寸法 d（製品送り）", value=200.0)
 c = st.number_input("フィレット半径 c", value=10.0)
@@ -20,7 +21,7 @@ try:
     R = float(R_input) if use_circle1 else None
     r = float(r_input) if use_circle2 else None
 
-    # 割り付けロジック
+    # ===== 割り付けロジック =====
     mt = 13 if z < 50 else 20
     wpz_base = (20 + (convex - 20) / 2) * 0.9
     wpz = max(math.floor(wpz_base), 12)
@@ -35,7 +36,13 @@ try:
     wc = w + wp
     dc = d + dp
 
-    # フィレット中心計算
+    st.subheader("【割り付け計算結果】")
+    st.write(f"幅採り数 a = {a}")
+    st.write(f"送り採り数 b = {b}")
+    st.write(f"キャビピッチ wc = {wc}")
+    st.write(f"キャビピッチ dc = {dc}")
+
+    # ===== フィレット中心計算 =====
     x, y = symbols('x y', real=True)
     mx, my = None, None
 
@@ -80,16 +87,12 @@ try:
         st.error("第1象限に有効なフィレット中心が見つかりませんでした。")
         st.stop()
 
-    # 新定義の距離 L
-    L = math.sqrt((mx - dc) ** 2 + (my - wc) ** 2) - c
+    # ===== 新しい定義の L =====
+    L = math.sqrt((mx - dc / 2) ** 2 + (my - wc / 2) ** 2) - c
 
-    # ===== 出力 =====
-    st.subheader("【計算結果】")
-    st.write(f"幅採り数 a = {a}")
-    st.write(f"送り採り数 b = {b}")
-    st.write(f"キャビピッチ wc = {wc}")
-    st.write(f"キャビピッチ dc = {dc}")
-    st.write(f"距離 L（中心→(dc, wc) からフィレット半径を減算）= {L:.3f}")
+    st.subheader("【フィレット距離計算結果】")
+    st.write(f"フィレット中心 (mx, my) = ({mx:.3f}, {my:.3f})")
+    st.write(f"L = √((mx - dc/2)² + (my - wc/2)²) - c = {L:.3f}")
 
 except Exception as e:
     st.error(f"エラーが発生しました: {str(e)}")
