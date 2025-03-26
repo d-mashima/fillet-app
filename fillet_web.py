@@ -2,149 +2,160 @@ import streamlit as st
 from sympy import symbols, Eq, solve
 import math
 
-# ページ設定
 st.set_page_config(page_title="フィレット距離計算ツール", layout="centered")
 
-# HTML風スタイル追加
+# ===== スタイル =====
 st.markdown("""
-<style>
-    html, body {
-        font-family: "メイリオ", "MS Pゴシック", sans-serif;
-    }
-    .block-container {
-        max-width: 400px;
-        padding-top: 1rem;
+    <style>
+    .main {
+        max-width: 320px;
         margin: auto;
+        background-color: white;
+        padding: 20px 30px;
+        border-radius: 10px;
+        box-shadow: 2px 2px 10px rgba(0,0,0,0.2);
+        font-family: "メイリオ", sans-serif;
     }
-    label {
-        font-weight: bold;
-        font-size: 12px !important;
-    }
-    input[type="number"] {
-        text-align: center;
-    }
-    .stNumberInput > div > input {
-        font-size: 12px !important;
-        text-align: center !important;
-    }
-    .stTextInput > div > input {
-        font-size: 12px !important;
-        text-align: center !important;
-    }
-    .result-box {
-        background-color: #dff0d8;
-        border: 1px solid #c3e6cb;
-        padding: 10px;
-        border-radius: 6px;
-        font-size: 12px;
-    }
-    .section-title {
+    .title {
         background-color: #005bac;
         color: white;
-        padding: 6px;
-        font-size: 14px;
+        padding: 10px;
+        border-radius: 5px;
+        font-size: 16px;
         text-align: center;
-        border-radius: 4px;
-        margin-top: 20px;
     }
-</style>
+    .section {
+        background-color: #e9f5ff;
+        padding: 10px;
+        border-radius: 5px;
+        margin-top: 10px;
+        font-size: 13px;
+    }
+    input[type=number], input[type=text] {
+        text-align: center;
+    }
+    </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="section-title">割り付け＋フィレット距離計算ツール</div>', unsafe_allow_html=True)
+with st.container():
+    st.markdown('<div class="main">', unsafe_allow_html=True)
+    st.markdown('<div class="title">割り付け＋フィレット距離計算ツール</div>', unsafe_allow_html=True)
 
-# ===== 入力 =====
-w = st.number_input("短側寸法 w（製品巾）", value=100.0)
-d = st.number_input("長側寸法 d（製品送り）", value=200.0)
-c = st.number_input("フィレット半径 c", value=10.0)
-convex = st.number_input("凸（convex）", value=10.0)
-z = st.number_input("全高 z", value=40.0)
-R_input = st.text_input("短側の円半径（R, 式①）", value="")
-r_input = st.text_input("長側の円半径（r, 式②）", value="")
+    # ===== 入力 =====
+    w = st.number_input("短側寸法 w（製品巾）", value=100.0)
+    d = st.number_input("長側寸法 d（製品送り）", value=200.0)
+    c = st.number_input("フィレット半径 c", value=10.0)
+    convex = st.number_input("凸（convex）", value=10.0)
+    z = st.number_input("全高 z", value=40.0)
+    R_input = st.text_input("短側の円半径（R, 式①）", value="")
+    r_input = st.text_input("長側の円半径（r, 式②）", value="")
 
-use_circle1 = R_input.strip() != ""
-use_circle2 = r_input.strip() != ""
+    use_circle1 = R_input.strip() != ""
+    use_circle2 = r_input.strip() != ""
 
-try:
-    R = float(R_input) if use_circle1 else None
-    r = float(r_input) if use_circle2 else None
+    try:
+        R = float(R_input) if use_circle1 else None
+        r = float(r_input) if use_circle2 else None
 
-    # ===== 割り付けロジック =====
-    mt = 13 if z < 50 else 20
-    wpz_base = (20 + (convex - 20) / 2) * 0.9
-    wpz = max(math.floor(wpz_base), 12)
-    if z >= 50:
-        wpz = 20
-    dp = wpz
+        mt = 13 if z < 50 else 20
 
-    a = math.floor(960 / (wpz + w))
-    wp = math.floor((960 % (wpz + w)) / a) + wpz
-    b = math.floor((1100 - mt * 2) / (d + dp))
+        # ===== フィレット中心計算（変わらない） =====
+        x, y = symbols('x y', real=True)
+        mx, my = None, None
 
-    wc = w + wp
-    dc = d + dp
+        if use_circle1 and use_circle2:
+            x1, y1 = 0.0, -R + w / 2
+            x2, y2 = -r + d / 2, 0.0
+            eq1 = Eq((x - x1)**2 + (y - y1)**2, (R - c)**2)
+            eq2 = Eq((x - x2)**2 + (y - y2)**2, (r - c)**2)
+            solutions = solve((eq1, eq2), (x, y), dict=True)
+            for sol in solutions:
+                if sol[x].evalf() > 0 and sol[y].evalf() > 0:
+                    mx = float(sol[x].evalf())
+                    my = float(sol[y].evalf())
+                    break
+        elif use_circle1:
+            m = d / 2 - c
+            center_x, center_y = 0, -R + w / 2
+            eq = Eq((m - center_x)**2 + (y - center_y)**2, (R - c)**2)
+            sols = solve(eq, y)
+            for y_val in sols:
+                yf = y_val.evalf()
+                if yf > 0:
+                    mx = m
+                    my = float(yf)
+                    break
+        elif use_circle2:
+            n = w / 2 - c
+            center_x, center_y = -r + d / 2, 0
+            eq = Eq((x - center_x)**2 + (n - center_y)**2, (r - c)**2)
+            sols = solve(eq, x)
+            for x_val in sols:
+                xf = x_val.evalf()
+                if xf > 0:
+                    mx = float(xf)
+                    my = n
+                    break
+        else:
+            mx = d / 2 - c
+            my = w / 2 - c
 
-    st.markdown('<div class="section-title">計算結果</div>', unsafe_allow_html=True)
-    st.markdown(f"""
-    <div class="result-box">
-        幅採り数 a = {a}<br>
-        送り採り数 b = {b}<br>
-        キャビピッチ wc = {wc}<br>
-        キャビピッチ dc = {dc}<br>
-    """, unsafe_allow_html=True)
+        if mx is None or my is None:
+            st.error("第1象限に有効なフィレット中心が見つかりませんでした。")
+            st.stop()
 
-    # ===== フィレット中心計算 =====
-    x, y = symbols('x y', real=True)
-    mx, my = None, None
+        # ===== 最適化探索範囲 =====
+        wpz_base = (20 + (convex - 20) / 2) * 0.9
+        wpz_default = max(math.floor(wpz_base), 12)
+        if z >= 50:
+            wpz_default = 20
 
-    if use_circle1 and use_circle2:
-        x1, y1 = 0.0, -R + w / 2
-        x2, y2 = -r + d / 2, 0.0
-        eq1 = Eq((x - x1)**2 + (y - y1)**2, (R - c)**2)
-        eq2 = Eq((x - x2)**2 + (y - y2)**2, (r - c)**2)
-        solutions = solve((eq1, eq2), (x, y), dict=True)
-        for sol in solutions:
-            if sol[x].evalf() > 0 and sol[y].evalf() > 0:
-                mx = float(sol[x].evalf())
-                my = float(sol[y].evalf())
-                break
-    elif use_circle1:
-        m = d / 2 - c
-        center_x, center_y = 0, -R + w / 2
-        eq = Eq((m - center_x)**2 + (y - center_y)**2, (R - c)**2)
-        sols = solve(eq, y)
-        for y_val in sols:
-            yf = y_val.evalf()
-            if yf > 0:
-                mx = m
-                my = float(yf)
-                break
-    elif use_circle2:
-        n = w / 2 - c
-        center_x, center_y = -r + d / 2, 0
-        eq = Eq((x - center_x)**2 + (n - center_y)**2, (r - c)**2)
-        sols = solve(eq, x)
-        for x_val in sols:
-            xf = x_val.evalf()
-            if xf > 0:
-                mx = float(xf)
-                my = n
-                break
-    else:
-        mx = d / 2 - c
-        my = w / 2 - c
+        best = None
 
-    if mx is None or my is None:
-        st.error("第1象限に有効なフィレット中心が見つかりませんでした。")
-        st.stop()
+        for delta_wp in range(-3, 4):  # ±3mm
+            for delta_dp in range(-3, 4):
+                wp = wpz_default + delta_wp
+                dp = wpz_default + delta_dp
+                if wp < 1 or dp < 1:
+                    continue
 
-    # ===== 新定義の L =====
-    L = math.sqrt((mx - dc / 2) ** 2 + (my - wc / 2) ** 2) - c
+                a = math.floor(960 / (wp + w))
+                b = math.floor((1100 - mt * 2) / (d + dp))
+                if a == 0 or b == 0:
+                    continue
 
-    st.markdown(f"""
-        フィレット中心 (mx, my) = ({mx:.3f}, {my:.3f})<br>
-        距離 L = √((mx - dc/2)² + (my - wc/2)²) - c = {L:.3f}
-    </div>
-    """, unsafe_allow_html=True)
+                wc = w + wp
+                dc = d + dp
+                ds = mt * 2 + (d + dp) * b
+                L = math.sqrt((mx - dc / 2)**2 + (my - wc / 2)**2) - c - 7
 
-except Exception as e:
-    st.error(f"エラーが発生しました: {str(e)}")
+                if L > 8:
+                    score = a * b
+                    if (best is None or
+                        score > best['score'] or
+                        (score == best['score'] and ds < best['ds'])):
+                        best = {
+                            'a': a, 'b': b, 'wp': wp, 'dp': dp,
+                            'wc': wc, 'dc': dc, 'ds': ds, 'L': L,
+                            'score': score
+                        }
+
+        # ===== 出力 =====
+        if best:
+            st.markdown('<div class="section">', unsafe_allow_html=True)
+            st.markdown("【最適化結果（L > 8 を満たす最大 a×b 構成）】")
+            st.write(f"幅採り数 a = {best['a']}")
+            st.write(f"送り採り数 b = {best['b']}")
+            st.write(f"キャビピッチ wc = {best['wc']}")
+            st.write(f"キャビピッチ dc = {best['dc']}")
+            st.write(f"型寸送り ds = {best['ds']}")
+            st.write(f"L = {best['L']:.3f}")
+            st.markdown('<span style="color: green;">※Lが8以下のため、自動最適化されました。</span>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            st.error("L > 8 を満たす割り付けが見つかりませんでした。")
+
+    except Exception as e:
+        st.error(f"エラーが発生しました: {str(e)}")
+
+    st.markdown('</div>', unsafe_allow_html=True)
