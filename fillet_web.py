@@ -42,13 +42,19 @@ st.markdown("""
 
 # ===== 入力 =====
 st.markdown('<div class="main">', unsafe_allow_html=True)
-st.markdown('<div class="title">幅採り数5のフィレット距離計算ツール</div>', unsafe_allow_html=True)
+st.markdown('<div class="title">フィレット距離計算ツール（最適化版）</div>', unsafe_allow_html=True)
 
 w = st.number_input("短側寸法 w（製品巾）", value=175.0)
 d = st.number_input("長側寸法 d（製品送り）", value=175.0)
 c = st.number_input("フィレット半径 c", value=5.0)
 convex = st.number_input("カットからの凸", value=3.0)
 z = st.number_input("全高 z", value=50.0)
+has_inner_outer_lid = st.checkbox("内外嵌合蓋")
+
+# 内外嵌合蓋がある場合、凸を8に固定
+if has_inner_outer_lid:
+    convex = 8.0
+
 max_width_limit = 970
 
 # 固定値
@@ -58,8 +64,12 @@ if z >= 50:
     wpz = 20
 wp_init = wpz
 dp_init = wpz
-a0 = 5
-b0 = 5
+a0 = math.floor(960 / (w + wpz))
+b0 = math.floor((1100 - mt * 2) / (d + wpz))
+
+# t値の計算
+t = math.floor((10 + convex / 2) * 0.9)
+additional_margin = 5 if has_inner_outer_lid else 0
 
 # フィレット中心
 mx = d / 2 - c
@@ -67,26 +77,28 @@ my = w / 2 - c
 
 # ===== 計算 =====
 def calculate():
-    dp_limit = int((1100 - mt * 2) / b0 - d)
-    min_ds_result = None
+    best_result = None
 
-    for wp in range(12, 40):
-        for dp in range(12, dp_limit + 1):
-            wc = w + wp
-            dc = d + dp
-            ds = mt * 2 + dc * b0
-            if ds > 1100 or a0 * wc > max_width_limit:
-                continue
-            L = math.sqrt((mx - dc / 2) ** 2 + (my - wc / 2) ** 2) - c - 7
-            if L > 8:
-                # dsが最小のものを選択
-                if min_ds_result is None or ds < min_ds_result['ds']:
-                    min_ds_result = {
-                        'a': a0, 'b': b0, 'wp': wp, 'dp': dp,
-                        'wc': wc, 'dc': dc, 'ds': ds, 'L': L,
-                        'score': a0 * b0
-                    }
-    return min_ds_result
+    # a, b を調整しながら最適化
+    for a in range(1, a0 + 1):
+        for b in range(1, b0 + 1):
+            dp_limit = int((1100 - mt * 2) / b - d)
+            for wp in range(t + additional_margin, 40):
+                for dp in range(t + additional_margin, dp_limit + 1):
+                    wc = w + wp
+                    dc = d + dp
+                    ds = mt * 2 + dc * b
+                    if ds > 1100 or a * wc > max_width_limit:
+                        continue
+                    L = math.sqrt((mx - dc / 2) ** 2 + (my - wc / 2) ** 2) - c - 7
+                    if L > 8:
+                        if best_result is None or (a * b > best_result['score']) or (a * b == best_result['score'] and ds < best_result['ds']):
+                            best_result = {
+                                'a': a, 'b': b, 'wp': wp, 'dp': dp,
+                                'wc': wc, 'dc': dc, 'ds': ds, 'L': L,
+                                'score': a * b
+                            }
+    return best_result
 
 if st.button("計算する"):
     result = calculate()
