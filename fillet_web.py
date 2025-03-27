@@ -74,8 +74,11 @@ mx = d / 2 - c
 my = w / 2 - c
 
 # ===== 計算 =====
-def calculate():
+def calculate(w, d):
     best_result = None
+
+    a0 = math.floor(960 / (w + wpz))
+    b0 = math.floor((1100 - mt * 2) / (d + wpz))
 
     for a in range(1, a0 + 1):
         for b in range(1, b0 + 1):
@@ -99,7 +102,17 @@ def calculate():
     return best_result
 
 if st.button("計算する"):
-    result = calculate()
+    # 通常計算
+    result = calculate(w, d)
+
+    # 横取り判定用の再計算（幅と送りを入れ替え）
+    swapped_result = calculate(d, w)
+
+    # 横取りの判定
+    if swapped_result and swapped_result['score'] > result['score']:
+        result_message = "横取りの可能性あり"
+    else:
+        result_message = "横取りの可能性なし"
 
     if result:
         st.markdown('<div class="section">', unsafe_allow_html=True)
@@ -111,6 +124,8 @@ if st.button("計算する"):
         st.write(f"型寸送り ds（参考値） = {result['ds']}")
         st.write(f"ガイドボッチからの距離 L = {result['L']:.3f}")
         st.write(f"製品数（a×b）= {result['score']}")
+        if result_message == "横取りの可能性あり":
+            st.markdown(f"<div class='alert'>{result_message}</div>", unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.error("条件を満たす構成が見つかりませんでした。")
