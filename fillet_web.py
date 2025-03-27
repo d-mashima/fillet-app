@@ -48,6 +48,8 @@ d = st.number_input("長側寸法 d（製品送り）", value=175.0)
 c = st.number_input("フィレット半径 c", value=5.0)
 convex = st.number_input("カットからの凸", value=3.0)
 z = st.number_input("全高 z", value=50.0)
+R = st.number_input("長側半径 R", value=100.0)
+r = st.number_input("短側半径 r", value=50.0)
 has_inner_outer_lid = st.checkbox("内外嵌合蓋")
 max_width_limit = 970
 
@@ -91,6 +93,7 @@ def calculate(w, d):
                     # ギリギリOKの条件に緩和
                     if ds > 1100 or a * wc > max_width_limit:
                         continue
+                    # Rとrを考慮したフィレット距離の計算
                     L = math.sqrt((mx - dc / 2) ** 2 + (my - wc / 2) ** 2) - c - 7
                     if L >= 8:
                         if best_result is None or (a * b > best_result['score']) or (a * b == best_result['score'] and ds < best_result['ds']):
