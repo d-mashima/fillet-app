@@ -43,19 +43,43 @@ st.markdown("""
 st.markdown('<div class="main">', unsafe_allow_html=True)
 st.markdown('<div class="title">簡易割付計算</div>', unsafe_allow_html=True)
 
-w = st.number_input("短側寸法 w（製品巾）", value=175.0)
-d = st.number_input("長側寸法 d（製品送り）", value=175.0)
-c = st.number_input("フィレット半径 c", value=5.0)
-convex = st.number_input("カットからの凸", value=3.0)
-z = st.number_input("全高 z", value=50.0)
-R = st.number_input("長側半径 R", value=100.0)
-r = st.number_input("短側半径 r", value=50.0)
+w_input = st.text_input("短側寸法 w（製品巾）")
+d_input = st.text_input("長側寸法 d（製品送り）")
+c_input = st.text_input("フィレット半径 c")
+convex_input = st.text_input("カットからの凸")
+z_input = st.text_input("全高 z")
+R_input = st.text_input("長側半径 R (空欄の場合は直線として扱います)")
+r_input = st.text_input("短側半径 r (空欄の場合は直線として扱います)")
 has_inner_outer_lid = st.checkbox("内外嵌合蓋")
 max_width_limit = 970
+
+# 入力値のバリデーション
+def validate_input(value, name):
+    if not value.strip():
+        st.error(f"{name} が入力されていません。")
+        st.stop()
+    try:
+        return float(value)
+    except ValueError:
+        st.error(f"{name} は数値で入力してください。")
+        st.stop()
+
+w = validate_input(w_input, "短側寸法 w")
+d = validate_input(d_input, "長側寸法 d")
+c = validate_input(c_input, "フィレット半径 c")
+convex = validate_input(convex_input, "カットからの凸")
+z = validate_input(z_input, "全高 z")
 
 # 内外嵌合蓋がある場合、凸を8に固定
 if has_inner_outer_lid:
     convex = 8.0
+
+# Rとrの入力チェック（空欄の場合は直線として扱う）
+use_circle1 = R_input.strip() != ""
+use_circle2 = r_input.strip() != ""
+
+R = float(R_input) if use_circle1 else None
+r = float(r_input) if use_circle2 else None
 
 # 固定値
 mt = 20 if z >= 50 else 13
@@ -75,62 +99,9 @@ additional_margin = 5 if has_inner_outer_lid else 0
 mx = d / 2 - c
 my = w / 2 - c
 
-# ===== 計算 =====
-def calculate(w, d):
-    best_result = None
+# ファイルに保存
+file_path = '/mnt/data/simple_layout_tool_with_empty_defaults.py'
+with open(file_path, 'w') as f:
+    f.write(code)
 
-    a0 = math.floor(960 / (w + wpz))
-    b0 = math.floor((1100 - mt * 2) / (d + wpz))
-
-    for a in range(1, a0 + 1):
-        for b in range(1, b0 + 1):
-            dp_limit = int((1100 - mt * 2) / b - d)
-            for wp in range(t + additional_margin, 40):
-                for dp in range(t + additional_margin, dp_limit + 1):
-                    wc = w + wp
-                    dc = d + dp
-                    ds = mt * 2 + dc * b
-                    # ギリギリOKの条件に緩和
-                    if ds > 1100 or a * wc > max_width_limit:
-                        continue
-                    # Rとrを考慮したフィレット距離の計算
-                    L = math.sqrt((mx - dc / 2) ** 2 + (my - wc / 2) ** 2) - c - 7
-                    if L >= 8:
-                        if best_result is None or (a * b > best_result['score']) or (a * b == best_result['score'] and ds < best_result['ds']):
-                            best_result = {
-                                'a': a, 'b': b, 'wp': wp, 'dp': dp,
-                                'wc': wc, 'dc': dc, 'ds': ds, 'L': L,
-                                'score': a * b
-                            }
-    return best_result
-
-if st.button("計算する"):
-    # 通常計算
-    result = calculate(w, d)
-
-    # 横取り判定用の再計算（幅と送りを入れ替え）
-    swapped_result = calculate(d, w)
-
-    # 横取りの判定
-    if swapped_result and swapped_result['score'] > result['score']:
-        result_message = "横取りの可能性あり"
-    else:
-        result_message = "横取りの可能性なし"
-
-    if result:
-        st.markdown('<div class="section">', unsafe_allow_html=True)
-        st.markdown("【最適化結果】")
-        st.write(f"幅採り数 a = {result['a']}")
-        st.write(f"送り採り数 b = {result['b']}")
-        st.write(f"キャビピッチ wc = {result['wc']}")
-        st.write(f"送りキャビピッチ dc = {result['dc']}")
-        st.write(f"型寸送り ds（参考値） = {result['ds']}")
-        st.write(f"ガイドボッチからの距離 L = {result['L']:.3f}")
-        st.write(f"製品数（a×b）= {result['score']}")
-        if result_message == "横取りの可能性あり":
-            st.markdown(f"<div class='alert'>{result_message}</div>", unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-    else:
-        st.error("条件を満たす構成が見つかりませんでした。")
-
-st.markdown('</div>', unsafe_allow_html=True)
+file_path
