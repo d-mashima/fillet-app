@@ -1,114 +1,117 @@
 import streamlit as st
 import math
-from sympy import symbols, Eq, solve
 
 st.set_page_config(page_title="簡易割付計算", layout="centered")
 
-# 入力項目
-w = float(st.text_input("短側寸法 w（製品巾）", "161"))
-d = float(st.text_input("長側寸法 d（製品送り）", "161"))
-c = float(st.text_input("フィレット半径 c", "4"))
-convex_input = st.text_input("カットからの凸", "15")
-R_input = st.text_input("長側半径 R (空欄の場合は直線として扱います)", "")
-r_input = st.text_input("短側半径 r (空欄の場合は直線として扱います)", "")
+# ===== スタイル =====
+st.markdown('''
+    <style>
+    .main {
+        max-width: 360px;
+        margin: auto;
+        background-color: white;
+        padding: 20px 30px;
+        border-radius: 10px;
+        box-shadow: 2px 2px 10px rgba(0,0,0,0.2);
+        font-family: "メイリオ", sans-serif;
+    }
+    .title {
+        background-color: #005bac;
+        color: white;
+        padding: 10px;
+        border-radius: 5px;
+        font-size: 16px;
+        text-align: center;
+    }
+    .section {
+        background-color: #e9f5ff;
+        padding: 10px;
+        border-radius: 5px;
+        margin-top: 10px;
+        font-size: 13px;
+    }
+    .alert {
+        color: red;
+        font-weight: bold;
+        text-align: center;
+        margin-top: 10px;
+    }
+    </style>
+''', unsafe_allow_html=True)
+
+# ===== 入力 =====
+st.markdown('<div class="main">', unsafe_allow_html=True)
+st.markdown('<div class="title">簡易割付計算</div>', unsafe_allow_html=True)
+
+w = st.number_input("短側寸法 w（製品巾）", value=175.0)
+d = st.number_input("長側寸法 d（製品送り）", value=175.0)
+c = st.number_input("フィレット半径 c", value=5.0)
+convex = st.number_input("カットからの凸", value=3.0)
+z = st.number_input("全高 z", value=50.0)
 has_inner_outer_lid = st.checkbox("内外嵌合蓋")
+max_width_limit = 970
 
-R = float(R_input) if R_input.strip() else None
-r = float(r_input) if r_input.strip() else None
-convex = float(convex_input)
-
-# ===== 内外嵌合蓋の処理 =====
+# 内外嵌合蓋がある場合、凸を8に固定
 if has_inner_outer_lid:
     convex = 8.0
 
-# ===== t の計算 =====
-t = int((10 + convex / 2) * 0.9)
+# ===== t 値の計算 =====
+t = max(int((10 + convex / 2) * 0.9), 12)
 
-# ===== フィレット中心の計算関数 =====
-def calculate_fillet_center(w, d, c, R, r):
-    x, y = symbols('x y', real=True)
-    
-    try:
-        if R and r:
-            # 円と円のフィレット
-            x1, y1 = 0, -R + c
-            x2, y2 = -r + c, 0
-            
-            eq1 = Eq((x - x1)**2 + (y - y1)**2, (R - c)**2)
-            eq2 = Eq((x - x2)**2 + (y - y2)**2, (r - c)**2)
-            solutions = solve((eq1, eq2), (x, y), dict=True)
-            for sol in solutions:
-                if sol[x] > 0 and sol[y] > 0:
-                    return float(sol[x]), float(sol[y])
+# 固定値
+mt = 20 if z >= 50 else 13
+wpz = max(math.floor((20 + (convex - 20) / 2) * 0.9), 12)
+if z >= 50:
+    wpz = 20
+wp_init = wpz
+dp_init = wpz
+a0 = math.floor(960 / (w + wpz))
+b0 = math.floor((1100 - mt * 2) / (d + wpz))
 
-        elif R and not r:
-            # 円と直線のフィレット
-            x1, y1 = 0, -R + c
-            m = d / 2 - c
-            eq = Eq((m - x1)**2 + (y - y1)**2, (R - c)**2)
-            solutions = solve(eq, y)
-            for y_val in solutions:
-                yf = y_val.evalf()
-                if yf > 0:
-                    return m, float(yf)
+# フィレット中心
+mx = d / 2 - c
+my = w / 2 - c
 
-        elif not R and r:
-            # 直線と円のフィレット
-            x2, y2 = -r + c, 0
-            n = w / 2 - c
-            eq = Eq((x - x2)**2 + (n - y2)**2, (r - c)**2)
-            solutions = solve(eq, x)
-            for x_val in solutions:
-                xf = x_val.evalf()
-                if xf > 0:
-                    return float(xf), n
+# ===== 計算 =====
+def calculate():
+    best_result = None
 
-        else:
-            # 直線と直線のフィレット
-            mx = d / 2 - c
-            my = w / 2 - c
-            return mx, my
+    for a in range(1, a0 + 1):
+        for b in range(1, b0 + 1):
+            dp_limit = int((1100 - mt * 2) / b - d)
+            for wp in range(t, 40):
+                for dp in range(t, dp_limit + 1):
+                    wc = w + wp
+                    dc = d + dp
+                    ds = mt * 2 + dc * b
+                    # ギリギリOKの条件に緩和
+                    if ds > 1100 or a * wc > max_width_limit:
+                        continue
+                    L = math.sqrt((mx - dc / 2) ** 2 + (my - wc / 2) ** 2) - c - 7
+                    if L >= 8:
+                        if best_result is None or (a * b > best_result['score']) or (a * b == best_result['score'] and ds < best_result['ds']):
+                            best_result = {
+                                'a': a, 'b': b, 'wp': wp, 'dp': dp,
+                                'wc': wc, 'dc': dc, 'ds': ds, 'L': L,
+                                'score': a * b
+                            }
+    return best_result
 
-    except Exception as e:
-        return None, str(e)
-
-# ===== 横取り判定 =====
-def check_side_pick(a, b, dc, wc):
-    alt_a = max(t, int(1100 / dc))
-    alt_b = max(t, int(960 / wc))
-    return alt_a * alt_b > a * b
-
-# ===== ボタンが押されたら計算 =====
 if st.button("計算する"):
-    mx, my = calculate_fillet_center(w, d, c, R, r)
+    result = calculate()
 
-    if mx is not None:
-        # 仮のキャビピッチ
-        dc = d + 20
-        wc = w + 20
-
-        # フィレット距離 L の計算
-        L = math.sqrt((mx - dc / 2) ** 2 + (my - wc / 2) ** 2) - c - 7
-
-        # 幅採り数と送り採り数の計算
-        a = max(t, int(960 / dc))
-        b = max(t, int(1100 / wc))
-
-        # dsの計算（型寸送り・参考値）
-        ds = dc * a
-
-        # 横取り判定
-        side_pick = check_side_pick(a, b, dc, wc)
-        side_pick_message = "横取りの可能性あり" if side_pick else "横取りの可能性なし"
-
-        # 結果の表示
-        st.success(f"フィレット中心の座標 (m, n)：({mx:.3f}, {my:.3f})")
-        st.write(f"幅採り数: {a}")
-        st.write(f"送り採り数: {b}")
-        st.write(f"幅方向キャビピッチ (wc): {wc}")
-        st.write(f"送り方向キャビピッチ (dc): {dc}")
-        st.write(f"フィレット距離 L（ガイドボッチからの距離）: {L:.3f}")
-        st.write(f"型寸送り (参考値) ds: {ds}")
-        st.write(side_pick_message)
+    if result:
+        st.markdown('<div class="section">', unsafe_allow_html=True)
+        st.markdown("【最適化結果】")
+        st.write(f"幅採り数 a = {result['a']}")
+        st.write(f"送り採り数 b = {result['b']}")
+        st.write(f"キャビピッチ wc = {result['wc']}")
+        st.write(f"送りキャビピッチ dc = {result['dc']}")
+        st.write(f"型寸送り ds（参考値） = {result['ds']}")
+        st.write(f"ガイドボッチからの距離 L = {result['L']:.3f}")
+        st.write(f"製品数（a×b）= {result['score']}")
+        st.markdown('</div>', unsafe_allow_html=True)
     else:
-        st.error(f"計算に失敗しました。エラー詳細: {my}")
+        st.error("条件を満たす構成が見つかりませんでした。")
+
+st.markdown('</div>', unsafe_allow_html=True)
