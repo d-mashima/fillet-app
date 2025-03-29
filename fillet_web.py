@@ -1,143 +1,72 @@
-import streamlit as st
+
 import math
-from sympy import symbols, Eq, solve
 
-st.set_page_config(page_title="簡易割付計算", layout="centered")
-
-# ===== スタイル =====
-st.markdown('''
-    <style>
-    .main {
-        max-width: 360px;
-        margin: auto;
-        background-color: white;
-        padding: 20px 30px;
-        border-radius: 10px;
-        box-shadow: 2px 2px 10px rgba(0,0,0,0.2);
-        font-family: "メイリオ", sans-serif;
-    }
-    .title {
-        background-color: #005bac;
-        color: white;
-        padding: 10px;
-        border-radius: 5px;
-        font-size: 16px;
-        text-align: center;
-    }
-    .section {
-        background-color: #e9f5ff;
-        padding: 10px;
-        border-radius: 5px;
-        margin-top: 10px;
-        font-size: 13px;
-    }
-    .alert {
-        color: red;
-        font-weight: bold;
-        text-align: center;
-        margin-top: 10px;
-    }
-    </style>
-''', unsafe_allow_html=True)
-
-# ===== 入力 =====
-st.markdown('<div class="main">', unsafe_allow_html=True)
-st.markdown('<div class="title">簡易割付計算</div>', unsafe_allow_html=True)
-
-w = st.number_input("短側寸法 w（製品巾）", value=175.0)
-d = st.number_input("長側寸法 d（製品送り）", value=175.0)
-c = st.number_input("フィレット半径 c", value=5.0)
-convex = st.number_input("カットからの凸", value=3.0)
-z = st.number_input("全高 z", value=50.0)
-has_inner_outer_lid = st.checkbox("内外嵌合蓋")
-R_input = st.text_input("長側半径 R (空欄の場合は直線)", "")
-r_input = st.text_input("短側半径 r (空欄の場合は直線)", "")
-R = float(R_input) if R_input.strip() else None
-r = float(r_input) if r_input.strip() else None
+# 入力値
+w = 175.0
+d = 175.0
+c = 5.0
+convex = 3.0
+z = 50.0
+has_inner_outer_lid = False
 max_width_limit = 975
 
 # 内外嵌合蓋がある場合、凸を8に固定
 if has_inner_outer_lid:
     convex = 8.0
 
-# ===== wp, dp の計算 =====
-wp = max(12, int((10 + convex / 2) * 0.9))
-dp = max(12, int((10 + convex / 2) * 0.9))
+# 固定値
+mt = 20 if z >= 50 else 13
+wpz = max(math.floor((20 + (convex - 20) / 2) * 0.9), 12)
+if z >= 50:
+    wpz = 20
 
-# ===== フィレット中心の計算 =====
-def calculate_fillet_center(w, d, c, R, r):
-    x, y = symbols('x y', real=True)
+# フィレット中心の計算
+mx = d / 2 - c
+my = w / 2 - c
 
-    try:
-        if R and r:
-            # 円と円のフィレット
-            x1, y1 = 0, -R + c
-            x2, y2 = -r + c, 0
-            eq1 = Eq((x - x1)**2 + (y - y1)**2, (R - c)**2)
-            eq2 = Eq((x - x2)**2 + (y - y2)**2, (r - c)**2)
-            solutions = solve((eq1, eq2), (x, y), dict=True)
-            for sol in solutions:
-                if sol[x] > 0 and sol[y] > 0:
-                    return float(sol[x]), float(sol[y])
+# 初期化
+a0 = math.floor(max_width_limit / (w + wpz))
+b0 = math.floor((1100 - mt * 2) / (d + wpz))
 
-        elif R and not r:
-            # 円と直線のフィレット
-            x1, y1 = 0, -R + c
-            m = d / 2 - c
-            eq = Eq((m - x1)**2 + (y - y1)**2, (R - c)**2)
-            solutions = solve(eq, y)
-            for y_val in solutions:
-                if y_val.evalf() > 0:
-                    return m, float(y_val.evalf())
+# 最適化関数
+def optimize_adjusted(a_ref, b_ref):
+    best = None
+    wp_range = range(1, int(max_width_limit / a_ref - w) + 1)
+    dp_limit = int((1100 - mt * 2) / b_ref - d)
+    dp_range = range(1, dp_limit + 1)
 
-        elif not R and r:
-            # 直線と円のフィレット
-            x2, y2 = -r + c, 0
-            n = w / 2 - c
-            eq = Eq((x - x2)**2 + (n - y2)**2, (r - c)**2)
-            solutions = solve(eq, x)
-            for x_val in solutions:
-                if x_val.evalf() > 0:
-                    return float(x_val.evalf()), n
+    for wp in wp_range:
+        for dp in dp_range:
+            if wp < 1 or dp < 1:
+                continue
+            a = min(a_ref, math.floor(max_width_limit / (w + wp)))
+            b = min(b_ref, math.floor((1100 - mt * 2) / (d + dp)))
+            if a == 0 or b == 0:
+                continue
+            wc = w + wp
+            dc = d + dp
+            ds = mt * 2 + (d + dp) * b
+            L = math.sqrt((mx - dc / 2) ** 2 + (my - wc / 2) ** 2) - c - 7
+            if L > 8:
+                score = a * b
+                if (best is None or
+                    score > best['score'] or
+                    (score == best['score'] and ds < best['ds'])):
+                    best = {
+                        'a': a, 'b': b, 'wp': wp, 'dp': dp,
+                        'wc': wc, 'dc': dc, 'ds': ds, 'L': L,
+                        'score': score
+                    }
+    return best
 
-        else:
-            # 直線と直線のフィレット
-            mx = d / 2 - c
-            my = w / 2 - c
-            return mx, my
+# 最適化実行
+result_adjusted = optimize_adjusted(a0, b0)
 
-    except Exception as e:
-        st.error(f"計算中にエラーが発生しました: {e}")
-        return None, None
+# 横取り判定
+a = result_adjusted['a']
+wc = result_adjusted['wc']
+horizontal_check = a * wc <= max_width_limit
 
-if st.button("計算する"):
-    mx, my = calculate_fillet_center(w, d, c, R, r)
-
-    if mx is not None and my is not None:
-        # 仮のキャビピッチ
-        dc = d + dp
-        wc = w + wp
-
-        # フィレット距離 L の計算
-        L = math.sqrt((mx - dc / 2) ** 2 + (my - wc / 2) ** 2) - c - 7
-
-        # 幅採り数と送り採り数の計算
-        a = max(wp, int(975 / dc))
-        b = max(dp, int(1100 / wc))
-
-        # dsの計算（型寸送り・参考値）
-        ds = dc * a
-
-        # 結果の表示
-        st.markdown('<div class="section">', unsafe_allow_html=True)
-        st.markdown("【最適化結果】")
-        st.write(f"フィレット中心の座標 (m, n)：({mx:.3f}, {my:.3f})")
-        st.write(f"幅採り数: {a}")
-        st.write(f"送り採り数: {b}")
-        st.write(f"幅方向キャビピッチ (wc): {wc}")
-        st.write(f"送り方向キャビピッチ (dc): {dc}")
-        st.write(f"フィレット距離 L（ガイドボッチからの距離）: {L:.3f}")
-        st.write(f"型寸送り (参考値) ds: {ds}")
-        st.markdown('</div>', unsafe_allow_html=True)
-    else:
-        st.error("フィレット中心の計算に失敗しました。")
+# 出力
+print("最適化結果:", result_adjusted)
+print("横取り判定 (True=OK / False=NG):", horizontal_check)
