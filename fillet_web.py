@@ -50,7 +50,9 @@ def calc_optimal(w, d, c, convex, z, R, r):
         wpz = 20
     wp_init = wpz
     dp_init = wpz
-    a0 = math.floor(960 / (w + wpz))
+
+    # 960 → 970 に変更
+    a0 = math.floor(970 / (w + wpz))
     b0 = math.floor((1100 - mt * 2) / (d + wpz))
 
     # フィレット中心
@@ -103,72 +105,20 @@ def calc_optimal(w, d, c, convex, z, R, r):
             for dp in dp_range:
                 if wp < 1 or dp < 1:
                     continue
-                a = min(a_ref, math.floor(960 / (w + wp)))
-                b = min(b_ref, math.floor((1100 - mt * 2) / (d + dp)))
-                if a == 0 or b == 0:
-                    continue
-                wc = w + wp
-                dc = d + dp
-                ds = mt * 2 + (d + dp) * b
-                L = math.sqrt((mx - dc / 2) ** 2 + (my - wc / 2) ** 2) - c - 7
-                if L > 8:
-                    score = a * b
-                    if (best is None or
-                        score > best['score'] or
-                        (score == best['score'] and ds < best['ds'])):
-                        best = dict(a=a, b=b, wp=wp, dp=dp, wc=wc, dc=dc, ds=ds, L=L, score=score)
+                for a_ref_try in range(a_ref, math.floor(974 / (w + wp)) + 1):
+                    a = min(a_ref_try, math.floor(974 / (w + wp)))
+                    b = min(b_ref, math.floor((1100 - mt * 2) / (d + dp)))
+                    if a == 0 or b == 0:
+                        continue
+                    wc = w + wp
+                    dc = d + dp
+                    ds = mt * 2 + (d + dp) * b
+                    L = math.sqrt((mx - dc / 2) ** 2 + (my - wc / 2) ** 2) - c - 7
+                    if L > 8:
+                        score = a * b
+                        if (best is None or score > best['score'] or (score == best['score'] and ds < best['ds'])):
+                            best = dict(a=a, b=b, wp=wp, dp=dp, wc=wc, dc=dc, ds=ds, L=L, score=score)
         return best
 
     result = evaluate(a0, b0, unrestricted=False)
-    if not result:
-        wp_eq = math.floor((960 - w * (a0 - 1)) / (a0 - 1)) if a0 > 1 else None
-        r1 = evaluate(a0 - 1, b0, unrestricted=True, force_wp=wp_eq) if wp_eq else None
-        r2 = evaluate(a0, b0 - 1, unrestricted=True)
-        candidates = [r for r in [r1, r2] if r]
-        if candidates:
-            result = max(candidates, key=lambda x: (x['score'], -x['ds']))
     return result
-
-# ===== 入力 UI =====
-st.markdown('<div class="main">', unsafe_allow_html=True)
-st.markdown('<div class="title">割り付け＋フィレット距離計算ツール</div>', unsafe_allow_html=True)
-
-w = st.number_input("短側寸法 w（製品巾）", value=100.0)
-d = st.number_input("長側寸法 d（製品送り）", value=200.0)
-c = st.number_input("フィレット半径 c", value=10.0)
-convex = st.number_input("凸（convex）", value=10.0)
-z = st.number_input("全高 z", value=40.0)
-R_input = st.text_input("短側の円半径（R, 式①）", value="")
-r_input = st.text_input("長側の円半径（r, 式②）", value="")
-
-try:
-    R = float(R_input) if R_input.strip() else None
-    r = float(r_input) if r_input.strip() else None
-
-    # 通常向き
-    result_normal = calc_optimal(w, d, c, convex, z, R, r)
-    # 横取り向き
-    result_rotated = calc_optimal(d, w, c, convex, z, r, R)
-
-    if result_normal:
-        st.markdown('<div class="section">', unsafe_allow_html=True)
-        st.markdown("【最適化結果（L > 8 を満たす最大 a×b 構成）】")
-        st.write(f"幅採り数 a = {result_normal['a']}")
-        st.write(f"送り採り数 b = {result_normal['b']}")
-        st.write(f"キャビピッチ wc = {result_normal['wc']}")
-        st.write(f"キャビピッチ dc = {result_normal['dc']}")
-        st.write(f"型寸送り ds = {result_normal['ds']}")
-        st.write(f"L = {result_normal['L']:.3f}")
-        st.markdown('<span style="color: green;">※Lが8以下のため、自動最適化されました。</span>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        if result_rotated and result_rotated['score'] > result_normal['score']:
-            st.markdown(f'<div class="alert">※横取りの可能性あり（a×b = {result_rotated["score"]}）</div>', unsafe_allow_html=True)
-
-    else:
-        st.error("L > 8 を満たす割り付けが見つかりませんでした。")
-
-except Exception as e:
-    st.error(f"エラーが発生しました: {str(e)}")
-
-st.markdown('</div>', unsafe_allow_html=True)
