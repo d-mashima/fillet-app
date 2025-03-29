@@ -1,5 +1,6 @@
 import streamlit as st
 import math
+from sympy import symbols, Eq, solve
 
 st.set_page_config(page_title="簡易割付計算", layout="centered")
 
@@ -49,6 +50,10 @@ c = st.number_input("フィレット半径 c", value=5.0)
 convex = st.number_input("カットからの凸", value=3.0)
 z = st.number_input("全高 z", value=50.0)
 has_inner_outer_lid = st.checkbox("内外嵌合蓋")
+R_input = st.text_input("長側半径 R (空欄の場合は直線)", "")
+r_input = st.text_input("短側半径 r (空欄の場合は直線)", "")
+R = float(R_input) if R_input.strip() else None
+r = float(r_input) if r_input.strip() else None
 max_width_limit = 970
 
 # 内外嵌合蓋がある場合、凸を8に固定
@@ -58,60 +63,59 @@ if has_inner_outer_lid:
 # ===== t 値の計算 =====
 t = max(int((10 + convex / 2) * 0.9), 12)
 
-# 固定値
-mt = 20 if z >= 50 else 13
-wpz = max(math.floor((20 + (convex - 20) / 2) * 0.9), 12)
-if z >= 50:
-    wpz = 20
-wp_init = wpz
-dp_init = wpz
-a0 = math.floor(960 / (w + wpz))
-b0 = math.floor((1100 - mt * 2) / (d + wpz))
+# ===== フィレット中心の計算 =====
+def calculate_fillet_center(w, d, c, R, r):
+    x, y = symbols('x y', real=True)
 
-# フィレット中心
-mx = d / 2 - c
-my = w / 2 - c
+    try:
+        if R and r:
+            # 円と円のフィレット
+            x1, y1 = 0, -R + c
+            x2, y2 = -r + c, 0
+            eq1 = Eq((x - x1)**2 + (y - y1)**2, (R - c)**2)
+            eq2 = Eq((x - x2)**2 + (y - y2)**2, (r - c)**2)
+            solutions = solve((eq1, eq2), (x, y), dict=True)
+            for sol in solutions:
+                if sol[x] > 0 and sol[y] > 0:
+                    return float(sol[x]), float(sol[y])
 
-# ===== 計算 =====
-def calculate():
-    best_result = None
+        elif R and not r:
+            # 円と直線のフィレット
+            x1, y1 = 0, -R + c
+            m = d / 2 - c
+            eq = Eq((m - x1)**2 + (y - y1)**2, (R - c)**2)
+            solutions = solve(eq, y)
+            for y_val in solutions:
+                if y_val.evalf() > 0:
+                    return m, float(y_val.evalf())
 
-    for a in range(1, a0 + 1):
-        for b in range(1, b0 + 1):
-            dp_limit = int((1100 - mt * 2) / b - d)
-            for wp in range(t, 40):
-                for dp in range(t, dp_limit + 1):
-                    wc = w + wp
-                    dc = d + dp
-                    ds = mt * 2 + dc * b
-                    # ギリギリOKの条件に緩和
-                    if ds > 1100 or a * wc > max_width_limit:
-                        continue
-                    L = math.sqrt((mx - dc / 2) ** 2 + (my - wc / 2) ** 2) - c - 7
-                    if L >= 8:
-                        if best_result is None or (a * b > best_result['score']) or (a * b == best_result['score'] and ds < best_result['ds']):
-                            best_result = {
-                                'a': a, 'b': b, 'wp': wp, 'dp': dp,
-                                'wc': wc, 'dc': dc, 'ds': ds, 'L': L,
-                                'score': a * b
-                            }
-    return best_result
+        elif not R and r:
+            # 直線と円のフィレット
+            x2, y2 = -r + c, 0
+            n = w / 2 - c
+            eq = Eq((x - x2)**2 + (n - y2)**2, (r - c)**2)
+            solutions = solve(eq, x)
+            for x_val in solutions:
+                if x_val.evalf() > 0:
+                    return float(x_val.evalf()), n
+
+        else:
+            # 直線と直線のフィレット
+            mx = d / 2 - c
+            my = w / 2 - c
+            return mx, my
+
+    except Exception as e:
+        st.error(f"計算中にエラーが発生しました: {e}")
+        return None, None
 
 if st.button("計算する"):
-    result = calculate()
+    mx, my = calculate_fillet_center(w, d, c, R, r)
 
-    if result:
+    if mx is not None and my is not None:
         st.markdown('<div class="section">', unsafe_allow_html=True)
-        st.markdown("【最適化結果】")
-        st.write(f"幅採り数 a = {result['a']}")
-        st.write(f"送り採り数 b = {result['b']}")
-        st.write(f"キャビピッチ wc = {result['wc']}")
-        st.write(f"送りキャビピッチ dc = {result['dc']}")
-        st.write(f"型寸送り ds（参考値） = {result['ds']}")
-        st.write(f"ガイドボッチからの距離 L = {result['L']:.3f}")
-        st.write(f"製品数（a×b）= {result['score']}")
+        st.markdown("【フィレット中心の結果】")
+        st.write(f"フィレット中心の座標 (m, n)：({mx:.3f}, {my:.3f})")
         st.markdown('</div>', unsafe_allow_html=True)
     else:
-        st.error("条件を満たす構成が見つかりませんでした。")
-
-st.markdown('</div>', unsafe_allow_html=True)
+        st.error("フィレット中心の計算に失敗しました。")
