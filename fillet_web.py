@@ -54,14 +54,15 @@ R_input = st.text_input("長側半径 R (空欄の場合は直線)", "")
 r_input = st.text_input("短側半径 r (空欄の場合は直線)", "")
 R = float(R_input) if R_input.strip() else None
 r = float(r_input) if r_input.strip() else None
-max_width_limit = 970
+max_width_limit = 975
 
 # 内外嵌合蓋がある場合、凸を8に固定
 if has_inner_outer_lid:
     convex = 8.0
 
-# ===== t 値の計算 =====
-t = max(int((10 + convex / 2) * 0.9), 12)
+# ===== wp, dp の計算 =====
+wp = max(12, int((10 + convex / 2) * 0.9))
+dp = max(12, int((10 + convex / 2) * 0.9))
 
 # ===== フィレット中心の計算 =====
 def calculate_fillet_center(w, d, c, R, r):
@@ -114,15 +115,15 @@ if st.button("計算する"):
 
     if mx is not None and my is not None:
         # 仮のキャビピッチ
-        dc = d + 20
-        wc = w + 20
+        dc = d + dp
+        wc = w + wp
 
         # フィレット距離 L の計算
         L = math.sqrt((mx - dc / 2) ** 2 + (my - wc / 2) ** 2) - c - 7
 
         # 幅採り数と送り採り数の計算
-        a = max(t, int(960 / dc))
-        b = max(t, int(1100 / wc))
+        a = max(wp, int(975 / dc))
+        b = max(dp, int(1100 / wc))
 
         # dsの計算（型寸送り・参考値）
         ds = dc * a
