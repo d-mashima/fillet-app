@@ -113,9 +113,30 @@ if st.button("計算する"):
     mx, my = calculate_fillet_center(w, d, c, R, r)
 
     if mx is not None and my is not None:
+        # 仮のキャビピッチ
+        dc = d + 20
+        wc = w + 20
+
+        # フィレット距離 L の計算
+        L = math.sqrt((mx - dc / 2) ** 2 + (my - wc / 2) ** 2) - c - 7
+
+        # 幅採り数と送り採り数の計算
+        a = max(t, int(960 / dc))
+        b = max(t, int(1100 / wc))
+
+        # dsの計算（型寸送り・参考値）
+        ds = dc * a
+
+        # 結果の表示
         st.markdown('<div class="section">', unsafe_allow_html=True)
-        st.markdown("【フィレット中心の結果】")
+        st.markdown("【最適化結果】")
         st.write(f"フィレット中心の座標 (m, n)：({mx:.3f}, {my:.3f})")
+        st.write(f"幅採り数: {a}")
+        st.write(f"送り採り数: {b}")
+        st.write(f"幅方向キャビピッチ (wc): {wc}")
+        st.write(f"送り方向キャビピッチ (dc): {dc}")
+        st.write(f"フィレット距離 L（ガイドボッチからの距離）: {L:.3f}")
+        st.write(f"型寸送り (参考値) ds: {ds}")
         st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.error("フィレット中心の計算に失敗しました。")
